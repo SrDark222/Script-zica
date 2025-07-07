@@ -31,7 +31,7 @@ local cabecalho = Instance.new("TextLabel", toggle)
 cabecalho.Size = UDim2.new(1, 0, 0.3, 0)
 cabecalho.Position = UDim2.new(0, 0, -0.35, 0)
 cabecalho.BackgroundTransparency = 1
-cabecalho.Text = "Aimbot Legit v1 (RushLock)"
+cabecalho.Text = "Aimbot Legit v1 (By dkzin)"
 cabecalho.Font = Enum.Font.Gotham
 cabecalho.TextColor3 = Color3.fromRGB(255, 255, 255)
 cabecalho.TextScaled = true
@@ -39,13 +39,13 @@ cabecalho.TextScaled = true
 toggle.MouseButton1Click:Connect(function()
 	if modoAtual == "FFA" then
 		modoAtual = "ENEMY"
-		toggle.Text = "Mode: ENEMY"
+		toggle.Text = "Modo: Time"
 	elseif modoAtual == "ENEMY" then
 		modoAtual = "OFF"
-		toggle.Text = "Mode: OFF"
+		toggle.Text = "Modo: Desligado"
 	elseif modoAtual == "OFF" then
 		modoAtual = "FFA"
-		toggle.Text = "Mode: FFA"
+		toggle.Text = "Modo: FFA"
 	end
 end)
 
