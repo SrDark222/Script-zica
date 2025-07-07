@@ -1,0 +1,162 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local UserInput = game:GetService("UserInputService")
+local localPlayer = Players.LocalPlayer
+
+local modoAtual = "FFA"
+local alvoAtual = nil
+
+-- GUI Setup
+local screenGui = Instance.new("ScreenGui", game.CoreGui)
+screenGui.ResetOnSpawn = false
+
+local toggle = Instance.new("TextButton")
+toggle.Size = UDim2.new(0, 160, 0, 50)
+toggle.Position = UDim2.new(0, 80, 0, 100)
+toggle.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+toggle.Text = "Modo: FFA"
+toggle.TextColor3 = Color3.fromRGB(230, 230, 230)
+toggle.Font = Enum.Font.GothamMedium
+toggle.TextScaled = true
+toggle.Draggable = true
+toggle.AutoButtonColor = false
+toggle.Parent = screenGui
+
+Instance.new("UICorner", toggle).CornerRadius = UDim.new(0, 6)
+
+-- Cabeçalho
+local cabecalho = Instance.new("TextLabel", toggle)
+cabecalho.Size = UDim2.new(1, 0, 0.3, 0)
+cabecalho.Position = UDim2.new(0, 0, -0.35, 0)
+cabecalho.BackgroundTransparency = 1
+cabecalho.Text = "Aimbot Legit v1 (By Dkzin)"
+cabecalho.Font = Enum.Font.Gotham
+cabecalho.TextColor3 = Color3.fromRGB(230, 230, 230)
+cabecalho.TextScaled = true
+
+-- Alterna modo
+toggle.MouseButton1Click:Connect(function()
+	if modoAtual == "FFA" then
+		modoAtual = "ENEMY"
+		toggle.Text = "Modo: time"
+	elseif modoAtual == "ENEMY" then
+		modoAtual = "OFF"
+		toggle.Text = "Modo: Desligado"
+	elseif modoAtual == "OFF" then
+		modoAtual = "FFA"
+		toggle.Text = "Modo: FFA"
+	end
+end)
+
+-- Parte visível com colisão
+local function parteValida(char)
+	for _, nome in ipairs({"Head", "HumanoidRootPart"}) do
+		local p = char:FindFirstChild(nome)
+		if p then
+			local _, visivel = Camera:WorldToViewportPoint(p.Position)
+			if visivel then
+				local params = RaycastParams.new()
+				params.FilterType = Enum.RaycastFilterType.Blacklist
+				params.FilterDescendantsInstances = {localPlayer.Character, Camera}
+				local hit = workspace:Raycast(Camera.CFrame.Position, (p.Position - Camera.CFrame.Position).Unit * 999, params)
+				if not hit or hit.Instance:IsDescendantOf(char) then
+					return p
+				end
+			end
+		end
+	end
+end
+
+-- ForceField check
+local function getForceFields()
+	local map = {}
+	for _, ff in ipairs(workspace:GetDescendants()) do
+		if ff:IsA("ForceField") then
+			local model = ff:FindFirstAncestorOfClass("Model")
+			if model then
+				local dono = Players:GetPlayerFromCharacter(model)
+				if dono then
+					map[dono] = true
+				end
+			end
+		end
+	end
+	return map
+end
+
+-- Pode mirar?
+local function podeMirar(p, block)
+	if p == localPlayer then return false end
+	if not p.Character or not p.Character:FindFirstChild("Humanoid") then return false end
+	if p.Character.Humanoid.Health <= 0 then return false end
+	if block[p] then return false end
+	if modoAtual == "OFF" then return false end
+	if modoAtual == "ENEMY" and p.Team == localPlayer.Team then return false end
+	return true
+end
+
+-- Predict
+local function predict(p, dist, dt)
+	local hrp = p.Parent and p.Parent:FindFirstChild("HumanoidRootPart")
+	if not hrp then return p.Position end
+	local vel = hrp.Velocity
+	local delay = math.clamp(dist / 850, 0.01, 0.1)
+	return p.Position + (vel * delay * (dt * 60))
+end
+
+-- Mira suave
+RunService.RenderStepped:Connect(function(dt)
+	if modoAtual == "OFF" then return end
+
+	local forceBlock = getForceFields()
+	local menor = math.huge
+	local melhor = nil
+
+	for _, p in ipairs(Players:GetPlayers()) do
+		if podeMirar(p, forceBlock) then
+			local parte = parteValida(p.Character)
+			if parte then
+				local dist = (Camera.CFrame.Position - parte.Position).Magnitude
+				if dist < menor then
+					melhor = parte
+					menor = dist
+				end
+			end
+		end
+	end
+
+	alvoAtual = melhor
+
+	if alvoAtual then
+		local origem = Camera.CFrame.Position
+		local destino = predict(alvoAtual, menor, dt)
+
+		-- Aim Assist Visual: desenha ponto alvo (facultativo)
+		--[[
+		if not screenGui:FindFirstChild("targetDot") then
+			local dot = Instance.new("Frame", screenGui)
+			dot.Name = "targetDot"
+			dot.Size = UDim2.new(0, 6, 0, 6)
+			dot.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+			dot.BorderSizePixel = 0
+			Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
+		end
+
+		local dot = screenGui:FindFirstChild("targetDot")
+		local viewPos, onScreen = Camera:WorldToViewportPoint(destino)
+		if onScreen then
+			dot.Position = UDim2.new(0, viewPos.X, 0, viewPos.Y)
+			dot.Visible = true
+		else
+			dot.Visible = false
+		end
+		]]
+
+		-- Mira leve (direção da câmera levemente empurrada)
+		local look = Camera.CFrame.LookVector
+		local dir = (destino - origem).Unit
+		local novo = look:Lerp(dir, 0.10) -- mais leve
+		Camera.CFrame = CFrame.new(origem, origem + novo)
+	end
+end)
