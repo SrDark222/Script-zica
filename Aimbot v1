@@ -1,13 +1,15 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
-local UserInput = game:GetService("UserInputService")
 local localPlayer = Players.LocalPlayer
 
 local modoAtual = "FFA"
 local alvoAtual = nil
+local semPredict = false
+local tempoLimpo = tick()
+local tempoProximo = math.random(60, 300)
 
--- GUI Setup
+-- GUI
 local screenGui = Instance.new("ScreenGui", game.CoreGui)
 screenGui.ResetOnSpawn = false
 
@@ -15,8 +17,8 @@ local toggle = Instance.new("TextButton")
 toggle.Size = UDim2.new(0, 160, 0, 50)
 toggle.Position = UDim2.new(0, 80, 0, 100)
 toggle.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-toggle.Text = "Modo: FFA"
-toggle.TextColor3 = Color3.fromRGB(230, 230, 230)
+toggle.Text = "Mode: FFA"
+toggle.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggle.Font = Enum.Font.GothamMedium
 toggle.TextScaled = true
 toggle.Draggable = true
@@ -25,31 +27,29 @@ toggle.Parent = screenGui
 
 Instance.new("UICorner", toggle).CornerRadius = UDim.new(0, 6)
 
--- Cabeçalho
 local cabecalho = Instance.new("TextLabel", toggle)
 cabecalho.Size = UDim2.new(1, 0, 0.3, 0)
 cabecalho.Position = UDim2.new(0, 0, -0.35, 0)
 cabecalho.BackgroundTransparency = 1
-cabecalho.Text = "Aimbot Legit v1 (By Dkzin)"
+cabecalho.Text = "Aimbot Legit v1 (RushLock)"
 cabecalho.Font = Enum.Font.Gotham
-cabecalho.TextColor3 = Color3.fromRGB(230, 230, 230)
+cabecalho.TextColor3 = Color3.fromRGB(255, 255, 255)
 cabecalho.TextScaled = true
 
--- Alterna modo
 toggle.MouseButton1Click:Connect(function()
 	if modoAtual == "FFA" then
 		modoAtual = "ENEMY"
-		toggle.Text = "Modo: time"
+		toggle.Text = "Mode: ENEMY"
 	elseif modoAtual == "ENEMY" then
 		modoAtual = "OFF"
-		toggle.Text = "Modo: Desligado"
+		toggle.Text = "Mode: OFF"
 	elseif modoAtual == "OFF" then
 		modoAtual = "FFA"
-		toggle.Text = "Modo: FFA"
+		toggle.Text = "Mode: FFA"
 	end
 end)
 
--- Parte visível com colisão
+-- Parte visível com raycast legit
 local function parteValida(char)
 	for _, nome in ipairs({"Head", "HumanoidRootPart"}) do
 		local p = char:FindFirstChild(nome)
@@ -68,7 +68,7 @@ local function parteValida(char)
 	end
 end
 
--- ForceField check
+-- Detecta quem tem force field
 local function getForceFields()
 	local map = {}
 	for _, ff in ipairs(workspace:GetDescendants()) do
@@ -85,7 +85,7 @@ local function getForceFields()
 	return map
 end
 
--- Pode mirar?
+-- Permissão para mirar
 local function podeMirar(p, block)
 	if p == localPlayer then return false end
 	if not p.Character or not p.Character:FindFirstChild("Humanoid") then return false end
@@ -96,67 +96,65 @@ local function podeMirar(p, block)
 	return true
 end
 
--- Predict
-local function predict(p, dist, dt)
-	local hrp = p.Parent and p.Parent:FindFirstChild("HumanoidRootPart")
-	if not hrp then return p.Position end
+-- Predict avançado
+local function predict(part, dist, dt)
+	if semPredict or dist <= 25 then return part.Position end
+	local hrp = part.Parent:FindFirstChild("HumanoidRootPart")
+	if not hrp then return part.Position end
 	local vel = hrp.Velocity
 	local delay = math.clamp(dist / 850, 0.01, 0.1)
-	return p.Position + (vel * delay * (dt * 60))
+	return part.Position + (vel * delay * (dt * 60))
 end
 
--- Mira suave
+-- Mira suave com força adaptativa
+local function miraSuave(origem, destino, dist)
+	local peso = 0.10
+	if dist <= 15 then
+		peso = 0.6
+	elseif dist <= 25 then
+		peso = 0.35
+	elseif dist <= 40 then
+		peso = 0.2
+	end
+	return Camera.CFrame.LookVector:Lerp((destino - origem).Unit, peso)
+end
+
+-- Loop principal
 RunService.RenderStepped:Connect(function(dt)
-	if modoAtual == "OFF" then return end
+	if modoAtual == "OFF" then alvoAtual = nil return end
+
+	-- burst de mira sem predict
+	if tick() - tempoLimpo > tempoProximo then
+		semPredict = true
+		task.delay(10, function()
+			semPredict = false
+			tempoLimpo = tick()
+			tempoProximo = math.random(60, 300)
+		end)
+	end
 
 	local forceBlock = getForceFields()
-	local menor = math.huge
-	local melhor = nil
+	local menorDist = math.huge
+	local melhorParte = nil
 
 	for _, p in ipairs(Players:GetPlayers()) do
 		if podeMirar(p, forceBlock) then
 			local parte = parteValida(p.Character)
 			if parte then
 				local dist = (Camera.CFrame.Position - parte.Position).Magnitude
-				if dist < menor then
-					melhor = parte
-					menor = dist
+				if dist < menorDist then
+					melhorParte = parte
+					menorDist = dist
 				end
 			end
 		end
 	end
 
-	alvoAtual = melhor
-
+	alvoAtual = melhorParte
 	if alvoAtual then
 		local origem = Camera.CFrame.Position
-		local destino = predict(alvoAtual, menor, dt)
-
-		-- Aim Assist Visual: desenha ponto alvo (facultativo)
-		--[[
-		if not screenGui:FindFirstChild("targetDot") then
-			local dot = Instance.new("Frame", screenGui)
-			dot.Name = "targetDot"
-			dot.Size = UDim2.new(0, 6, 0, 6)
-			dot.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-			dot.BorderSizePixel = 0
-			Instance.new("UICorner", dot).CornerRadius = UDim.new(1, 0)
-		end
-
-		local dot = screenGui:FindFirstChild("targetDot")
-		local viewPos, onScreen = Camera:WorldToViewportPoint(destino)
-		if onScreen then
-			dot.Position = UDim2.new(0, viewPos.X, 0, viewPos.Y)
-			dot.Visible = true
-		else
-			dot.Visible = false
-		end
-		]]
-
-		-- Mira leve (direção da câmera levemente empurrada)
-		local look = Camera.CFrame.LookVector
-		local dir = (destino - origem).Unit
-		local novo = look:Lerp(dir, 0.10) -- mais leve
+		local destino = predict(alvoAtual, menorDist, dt)
+		local novo = miraSuave(origem, destino, menorDist)
 		Camera.CFrame = CFrame.new(origem, origem + novo)
 	end
 end)
